@@ -16,7 +16,6 @@ slim = tf.contrib.slim
 HEIGHT, WIDTH, CHANNEL = 128, 128, 3
 BATCH_SIZE = 64
 EPOCH = 5000
-os.environ['CUDA_VISIBLE_DEVICES'] = '15'
 version = 'newPokemon'
 newPoke_path = './' + version
 
@@ -75,11 +74,12 @@ def generator(input, random_dim, is_train, reuse=False):
         b1 = tf.get_variable('b1', shape=[c4 * s4 * s4], dtype=tf.float32,
                              initializer=tf.constant_initializer(0.0))
         flat_conv1 = tf.add(tf.matmul(input, w1), b1, name='flat_conv1')
-        # 4*4*512
+         #Convolution, bias, activation, repeat! 
         conv1 = tf.reshape(flat_conv1, shape=[-1, s4, s4, c4], name='conv1')
         bn1 = tf.contrib.layers.batch_norm(conv1, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn1')
         act1 = tf.nn.relu(bn1, name='act1')
         # 8*8*256
+        #Convolution, bias, activation, repeat! 
         conv2 = tf.layers.conv2d_transpose(act1, c8, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
                                            kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
                                            name='conv2')
@@ -118,46 +118,36 @@ def discriminator(input, is_train, reuse=False):
     with tf.variable_scope('dis') as scope:
         if reuse:
             scope.reuse_variables()
-        # 64*64*64
+
+        #Convolution, activation, bias, repeat! 
         conv1 = tf.layers.conv2d(input, c2, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
                                  kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
                                  name='conv1')
-        # bn1 = tf.contrib.layers.batch_norm(conv1, is_training = is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope = 'bn1')
+        bn1 = tf.contrib.layers.batch_norm(conv1, is_training = is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope = 'bn1')
         act1 = lrelu(conv1, n='act1')
-        # 32*32*128
+         #Convolution, activation, bias, repeat! 
         conv2 = tf.layers.conv2d(act1, c4, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
                                  kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
                                  name='conv2')
         bn2 = tf.contrib.layers.batch_norm(conv2, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn2')
         act2 = lrelu(bn2, n='act2')
-        # 16*16*256
+        #Convolution, activation, bias, repeat! 
         conv3 = tf.layers.conv2d(act2, c8, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
                                  kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
                                  name='conv3')
         bn3 = tf.contrib.layers.batch_norm(conv3, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn3')
         act3 = lrelu(bn3, n='act3')
-        # 8*8*512
+         #Convolution, activation, bias, repeat! 
         conv4 = tf.layers.conv2d(act3, c16, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
                                  kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
                                  name='conv4')
         bn4 = tf.contrib.layers.batch_norm(conv4, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn4')
         act4 = lrelu(bn4, n='act4')
-        # # 8*8*256
-        # conv5 = tf.layers.conv2d(act4, c32, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-                                 # kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-                                 # name='conv5')
-        # bn5 = tf.contrib.layers.batch_norm(conv5, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn5')
-        # act5 = lrelu(bn5, n='act5')
-        
+       
         # start from act4
         dim = int(np.prod(act4.get_shape()[1:]))
         fc1 = tf.reshape(act4, shape=[-1, dim], name='fc1')
-        # w1 = tf.get_variable('w1', shape=[fc1.shape[-1], 512], dtype=tf.float32,
-                             # initializer=tf.truncated_normal_initializer(stddev=0.02))
-        # b1 = tf.get_variable('b1', shape=[512], dtype=tf.float32,
-                             # initializer=tf.constant_initializer(0.0))
-        # bnf = tf.contrib.layers.batch_norm(tf.matmul(fc1,w1), is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bnf')
-        # act_fc1 = lrelu(tf.nn.bias_add(bnf, b1),n = 'actf')
+      
         
         w2 = tf.get_variable('w2', shape=[fc1.shape[-1], 1], dtype=tf.float32,
                              initializer=tf.truncated_normal_initializer(stddev=0.02))
@@ -173,46 +163,26 @@ def discriminator(input, is_train, reuse=False):
 
 def train():
     random_dim = 100
-    print os.environ['CUDA_VISIBLE_DEVICES']
     
     with tf.variable_scope('input'):
+        #real and fake image placholders
         real_image = tf.placeholder(tf.float32, shape = [None, HEIGHT, WIDTH, CHANNEL], name='real_image')
         random_input = tf.placeholder(tf.float32, shape=[None, random_dim], name='rand_input')
         is_train = tf.placeholder(tf.bool, name='is_train')
     
     # wgan
     fake_image = generator(random_input, random_dim, is_train)
+    
     real_result = discriminator(real_image, is_train)
     fake_result = discriminator(fake_image, is_train, reuse=True)
     
     d_loss = tf.reduce_mean(fake_result) - tf.reduce_mean(real_result)  # This optimizes the discriminator.
     g_loss = -tf.reduce_mean(fake_result)  # This optimizes the generator.
-    
-    # # dcgan loss
-    # fake_image = generator(random_input, random_dim, is_train)
-    # # sample_fake = generator(random_input, random_dim, is_train, reuse = True)
-    # real_logits, real_result = discriminator(real_image, is_train)
-    # fake_logits, fake_result = discriminator(fake_image, is_train, reuse=True)
-    
-    # d_loss1 = tf.reduce_mean(
-            # tf.nn.sigmoid_cross_entropy_with_logits(
-            # logits = real_logits, labels = tf.ones_like(real_logits)))
-    # d_loss2 = tf.reduce_mean(
-            # tf.nn.sigmoid_cross_entropy_with_logits(
-            # logits = fake_logits, labels = tf.zeros_like(fake_logits)))
-    
-    # d_loss = d_loss1 + d_loss2
-    
-    # g_loss = tf.reduce_mean(
-            # tf.nn.sigmoid_cross_entropy_with_logits(
-            # logits = fake_logits, labels = tf.ones_like(fake_logits)))
             
 
     t_vars = tf.trainable_variables()
     d_vars = [var for var in t_vars if 'dis' in var.name]
     g_vars = [var for var in t_vars if 'gen' in var.name]
-    # test
-    # print(d_vars)
     trainer_d = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(d_loss, var_list=d_vars)
     trainer_g = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(g_loss, var_list=g_vars)
     # clip discriminator weights
@@ -229,21 +199,25 @@ def train():
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())
     # continue training
+    save_path = saver.save(sess, "/tmp/model.ckpt")
     ckpt = tf.train.latest_checkpoint('./model/' + version)
-    saver.restore(sess, ckpt)
+    saver.restore(sess, save_path)
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-    print 'total training sample num:%d' % samples_num
-    print 'batch size: %d, batch num per epoch: %d, epoch num: %d' % (batch_size, batch_num, EPOCH)
-    print 'start training...'
+    print('total training sample num:%d' % samples_num)
+    print('batch size: %d, batch num per epoch: %d, epoch num: %d' % (batch_size, batch_num, EPOCH))
+    print('start training...')
     for i in range(EPOCH):
+        print("Running epoch {}/{}...".format(i, EPOCH))
         for j in range(batch_num):
+            print(j)
             d_iters = 5
             g_iters = 1
 
             train_noise = np.random.uniform(-1.0, 1.0, size=[batch_size, random_dim]).astype(np.float32)
             for k in range(d_iters):
+                print(k)
                 train_image = sess.run(image_batch)
                 #wgan clip weights
                 sess.run(d_clip)
@@ -275,7 +249,7 @@ def train():
             # imgtest.astype(np.uint8)
             save_images(imgtest, [8,8] ,newPoke_path + '/epoch' + str(i) + '.jpg')
             
-            print 'train:[%d],d_loss:%f,g_loss:%f' % (i, dLoss, gLoss)
+            print('train:[%d],d_loss:%f,g_loss:%f' % (i, dLoss, gLoss))
     coord.request_stop()
     coord.join(threads)
 
@@ -303,4 +277,3 @@ def train():
 if __name__ == "__main__":
     train()
     # test()
-

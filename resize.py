@@ -2,10 +2,10 @@
 import os
 import cv2
 
-src = "./data" #pokeRGB_black
-dst = "./resizedData" # resized
-if not os.exists(dst):
-    os.mkdir(dst)
+src = "./roof_topping" #pokeRGB_black
+dst = "./resized_rt" # resized
+
+os.mkdir(dst)
 
 for each in os.listdir(src):
     img = cv2.imread(os.path.join(src,each))
